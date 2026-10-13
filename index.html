@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎬 Video Board Admin Panel</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Arial,sans-serif;background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);min-height:100vh;color:#fff;padding:20px}
+.container{max-width:900px;margin:0 auto}
+h1{text-align:center;font-size:2em;margin:20px 0;background:linear-gradient(90deg,#ff6b6b,#feca57,#48dbfb,#ff9ff3);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.card{background:rgba(255,255,255,.08);border-radius:15px;padding:20px;margin:15px 0;backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.1)}
+.card h2{margin-bottom:15px;font-size:1.2em}
+.btn{display:inline-block;padding:12px 24px;margin:5px;border:none;border-radius:10px;font-size:1em;cursor:pointer;font-weight:bold;transition:transform .2s}
+.btn:hover{transform:scale(1.05)}
+.btn-primary{background:linear-gradient(45deg,#667eea,#764ba2);color:#fff}
+.btn-success{background:linear-gradient(45deg,#11998e,#38ef7d);color:#fff}
+.btn-danger{background:linear-gradient(45deg,#eb3349,#f45c43);color:#fff}
+.btn-warning{background:linear-gradient(45deg,#f7971e,#ffd200);color:#000}
+.btn-info{background:linear-gradient(45deg,#2193b0,#6dd5ed);color:#fff}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+input,select,textarea{width:100%;padding:12px;margin:5px 0;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);color:#fff;font-size:1em}
+input::placeholder{color:#aaa}
+.hidden{display:none}
+#loginBox{text-align:center;max-width:400px;margin:100px auto}
+#loginBox input{text-align:center;font-size:1.5em;letter-spacing:5px}
+.stat{background:rgba(255,255,255,.1);border-radius:10px;padding:15px;text-align:center}
+.stat .num{font-size:2em;font-weight:bold;color:#feca57}
+.stat .lbl{font-size:.9em;color:#aaa}
+table{width:100%;border-collapse:collapse;margin:10px 0}
+th,td{padding:10px;text-align:left;border-bottom:1px solid rgba(255,255,255,.1)}
+th{background:rgba(255,255,255,.1)}
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- LOGIN -->
+<div id="loginBox" class="card">
+<h1>🔐 Admin Login</h1>
+<p style="margin:10px 0;color:#aaa">PIN enter karo:</p>
+<input type="password" id="pinInput" maxlength="6" placeholder="••••••">
+<br><br>
+<button class="btn btn-primary" onclick="doLogin()">🚀 Login</button>
+<p id="loginErr" style="color:#ff6b6b;margin-top:10px"></p>
+</div>
+
+<!-- MAIN PANEL -->
+<div id="panel" class="hidden">
+<h1>🎬✨ Video Board Admin ✨🎬</h1>
+
+<div class="card">
+<h2>🔄 Sync</h2>
+<button class="btn btn-info" onclick="refreshAll()">🔄 Refresh All</button>
+<button class="btn btn-warning" onclick="loadButtons()">🔘 Reload Buttons</button>
+<span id="syncStatus" style="margin-left:10px;color:#aaa"></span>
+</div>
+
+<div class="card">
+<h2>📊 Dashboard</h2>
+<div class="grid" id="statsGrid">
+<div class="stat"><div class="num" id="stOrders">-</div><div class="lbl">🎬 Orders</div></div>
+<div class="stat"><div class="num" id="stUsers">-</div><div class="lbl">👥 Users</div></div>
+<div class="stat"><div class="num" id="stPending">-</div><div class="lbl">⏳ Pending</div></div>
+<div class="stat"><div class="num" id="stRevenue">-</div><div class="lbl">💰 Revenue</div></div>
+</div>
+</div>
+
+<div class="card">
+<h2>🎬 Orders</h2>
+<button class="btn btn-primary" onclick="loadOrders()">📋 Load Orders</button>
+<div id="ordersList"></div>
+</div>
+
+<div class="card">
+<h2>👥 Users</h2>
+<button class="btn btn-primary" onclick="loadUsers()">👥 Load Users</button>
+<div id="usersList"></div>
+</div>
+
+<div class="card">
+<h2>💰 Deposits</h2>
+<button class="btn btn-primary" onclick="loadDeposits()">💰 Load Deposits</button>
+<div id="depositsList"></div>
+</div>
+
+<div class="card">
+<h2>📢 Broadcast</h2>
+<textarea id="bcText" rows="3" placeholder="Sab users ko message..."></textarea>
+<button class="btn btn-success" onclick="sendBroadcast()">📢 Send Broadcast</button>
+</div>
+
+<div class="card">
+<h2>⚙️ Settings</h2>
+<div class="grid">
+<button class="btn btn-info" onclick="apiCall('/api/config','GET')">⚙️ View Config</button>
+<button class="btn btn-warning" onclick="toggleBoard()">🔛 Toggle Board</button>
+</div>
+</div>
+
+<div class="card">
+<h2>🔘 Dynamic Buttons</h2>
+<p style="color:#aaa;margin-bottom:10px">API se aane wale buttons yahan dikhenge. Refresh dabao!</p>
+<div id="dynamicButtons" class="grid"></div>
+</div>
+
+</div>
+</div>
+
+<script>
+// ===== CONFIG =====
+const API_URL = '';  // Same origin - set your API URL here
+const ADMIN_PIN = '518474';  // ⚠️ Visible in source! Use server-side auth in production!
+let apiKey = localStorage.getItem('vb_api_key') || '';
+
+function doLogin(){
+  const pin = document.getElementById('pinInput').value;
+  if(pin === ADMIN_PIN){
+    document.getElementById('loginBox').classList.add('hidden');
+    document.getElementById('panel').classList.remove('hidden');
+    refreshAll();
+  } else {
+    document.getElementById('loginErr').textContent = '❌ Galat PIN!';
+  }
+}
+document.getElementById('pinInput').addEventListener('keypress', e=>{
+  if(e.key==='Enter') doLogin();
+});
+
+async function apiCall(path, method='GET', body=null){
+  const opts = {method, headers:{'Content-Type':'application/json'}};
+  if(apiKey) opts.headers['X-API-Key'] = apiKey;
+  if(body) opts.body = JSON.stringify(body);
+  try{
+    const r = await fetch(API_URL + path, opts);
+    return await r.json();
+  }catch(e){ return {ok:false, error:e.message}; }
+}
+
+async function refreshAll(){
+  document.getElementById('syncStatus').textContent = '⏳ Syncing...';
+  await Promise.all([loadStats(), loadButtons()]);
+  document.getElementById('syncStatus').textContent = '✅ Synced!';
+  setTimeout(()=>document.getElementById('syncStatus').textContent='', 2000);
+}
+
+async function loadStats(){
+  const d = await apiCall('/api/stats');
+  if(d.ok){
+    document.getElementById('stOrders').textContent = d.orders||0;
+    document.getElementById('stUsers').textContent = d.users||0;
+    document.getElementById('stPending').textContent = d.pending||0;
+    document.getElementById('stRevenue').textContent = 'Rs '+(d.revenue||0);
+  }
+}
+
+async function loadOrders(){
+  const d = await apiCall('/api/orders');
+  const el = document.getElementById('ordersList');
+  if(!d.ok || !d.orders){ el.innerHTML='<p>No orders</p>'; return; }
+  let h = '<table><tr><th>ID</th><th>User</th><th>Status</th><th>Action</th></tr>';
+  d.orders.slice(-10).reverse().forEach(o=>{
+    h += `<tr><td>${o.id}</td><td>${o.user_id}</td><td>${o.status}</td><td><button class="btn btn-success" onclick="completeOrder('${o.id}')">✅</button></td></tr>`;
+  });
+  el.innerHTML = h+'</table>';
+}
+
+async function loadUsers(){
+  const d = await apiCall('/api/users');
+  const el = document.getElementById('usersList');
+  if(!d.ok || !d.users){ el.innerHTML='<p>No users</p>'; return; }
+  let h = '<table><tr><th>ID</th><th>Balance</th><th>Action</th></tr>';
+  Object.entries(d.users).slice(-10).forEach(([uid,u])=>{
+    h += `<tr><td>${uid}</td><td>Rs ${u.balance||0}</td><td><button class="btn btn-danger" onclick="banUser('${uid}')">🚫</button></td></tr>`;
+  });
+  el.innerHTML = h+'</table>';
+}
+
+async function loadDeposits(){
+  const d = await apiCall('/api/deposits');
+  const el = document.getElementById('depositsList');
+  if(!d.ok || !d.deposits){ el.innerHTML='<p>No deposits</p>'; return; }
+  let h = '<table><tr><th>ID</th><th>Amount</th><th>Action</th></tr>';
+  d.deposits.filter(x=>x.status==='pending').forEach(x=>{
+    h += `<tr><td>${x.id}</td><td>Rs ${x.amount}</td><td><button class="btn btn-success" onclick="approveDep('${x.id}')">✅</button></td></tr>`;
+  });
+  el.innerHTML = h+'</table>';
+}
+
+async function loadButtons(){
+  // Dynamic buttons from API - add/delete via API, Refresh to sync!
+  const d = await apiCall('/api/buttons');
+  const el = document.getElementById('dynamicButtons');
+  if(!d.ok || !d.buttons || !d.buttons.length){
+    el.innerHTML = '<p style="color:#aaa">Koi custom buttons nahi. API se add karo!</p>';
+    return;
+  }
+  el.innerHTML = d.buttons.map(b=>
+    `<button class="btn btn-primary" onclick="apiCall('${b.action}','POST')">${b.emoji||'🔘'} ${b.label}</button>`
+  ).join('');
+}
+
+async function sendBroadcast(){
+  const t = document.getElementById('bcText').value;
+  if(!t) return alert('Message likho!');
+  const r = await apiCall('/api/broadcast','POST',{text:t});
+  alert(r.ok ? '✅ Bhej diya!' : '❌ Error: '+(r.error||'unknown'));
+}
+
+async function completeOrder(id){ await apiCall(`/api/orders/${id}/complete`,'POST'); loadOrders(); }
+async function banUser(id){ if(confirm('Ban?')){ await apiCall(`/api/users/${id}/ban`,'POST'); loadUsers(); } }
+async function approveDep(id){ await apiCall(`/api/deposits/${id}/approve`,'POST'); loadDeposits(); }
+async function toggleBoard(){ await apiCall('/api/board/toggle','POST'); alert('Toggled!'); }
+</script>
+</body>
+</html>
